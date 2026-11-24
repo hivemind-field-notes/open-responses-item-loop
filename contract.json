@@ -1,0 +1,126 @@
+{
+  "case_study": {
+    "entity": "pump p3",
+    "param_name": "pump_id",
+    "ids": {
+      "pump_id": "p3",
+      "call_id": "call_p3_1",
+      "response_prefix": "resp_",
+      "fc_id": "fc_p3_1",
+      "fco_id": "fco_p3_1",
+      "msg_user_id": "msg_user_p3",
+      "msg_answer_id": "msg_answer_p3"
+    },
+    "units": {
+      "pressure": "kPa"
+    },
+    "constants": {
+      "pressure_kpa": 210,
+      "question": "What is the pressure reading for pump p3?",
+      "answer": "Pump p3 pressure is 210 kPa.",
+      "p4_pressure_kpa": 185,
+      "model_id": "offline-pump",
+      "snapshot": "2026-04-24"
+    }
+  },
+  "module_tree": [
+    {"path": "chapters/ch01/run_pump.py", "created_in_chapter": 1, "modified_in_chapters": [], "purpose": "Initial offline tool loop for pump p3 (210 kPa)"},
+    {"path": "chapters/ch02/read_messages.py", "created_in_chapter": 2, "modified_in_chapters": [], "purpose": "Message roles, parts, refusals, and assistant phases"},
+    {"path": "chapters/ch03/reading_output.py", "created_in_chapter": 3, "modified_in_chapters": [], "purpose": "Local get_reading(pump_id) tool and call_p3_1 validation"},
+    {"path": "chapters/ch04/fold.py", "created_in_chapter": 4, "modified_in_chapters": [], "purpose": "SSE parser and streaming event reducer"},
+    {"path": "chapters/ch05/loop.py", "created_in_chapter": 5, "modified_in_chapters": [], "purpose": "Bounded tool-calling item loop"},
+    {"path": "chapters/ch06/transcript.py", "created_in_chapter": 6, "modified_in_chapters": [], "purpose": "Canonical SQLite transcript schema and atomic persistence"},
+    {"path": "chapters/ch06/store_pump.py", "created_in_chapter": 6, "modified_in_chapters": [], "purpose": "Two-turn pump p3 run persisted to pump.sqlite3"},
+    {"path": "chapters/ch07/check_db.py", "created_in_chapter": 7, "modified_in_chapters": [], "purpose": "Open Responses 2026-04-24 conformance checker for unified SQLite schema"},
+    {"path": "chapters/ch07/drift.py", "created_in_chapter": 7, "modified_in_chapters": [], "purpose": "Canonical 8 specification-versus-OpenAPI drift flags"},
+    {"path": "chapters/ch08/drift_card.py", "created_in_chapter": 8, "modified_in_chapters": [], "purpose": "Quick-reference drift card matching the canonical 8 flags"},
+    {"path": "chapters/ch08/transcript.py", "created_in_chapter": 8, "modified_in_chapters": [], "purpose": "Reference kit pump/check driver using the unified SQLite schema"},
+    {"path": "chapters/ch08/http_transport.py", "created_in_chapter": 8, "modified_in_chapters": [], "purpose": "Stdlib urllib.request Open Responses / OpenAI-compatible HTTP transport"},
+    {"path": "chapters/ch08/test_http_transport.py", "created_in_chapter": 8, "modified_in_chapters": [], "purpose": "Offline http.server 127.0.0.1:0 test for http_transport.py"}
+  ],
+  "public_api": [
+    {"symbol": "get_reading", "module": "chapters/ch03/reading_output.py", "signature": "def get_reading(pump_id: str) -> dict", "returns": "dict with pump_id and pressure_kpa", "introduced_in_chapter": 3},
+    {"symbol": "fold", "module": "chapters/ch04/fold.py", "signature": "def fold(frames: list[dict]) -> dict", "returns": "reconstructed response dict", "introduced_in_chapter": 4},
+    {"symbol": "run", "module": "chapters/ch05/loop.py", "signature": "def run(model, *, max_tool_calls: int = 4) -> RunResult", "returns": "RunResult", "introduced_in_chapter": 5},
+    {"symbol": "create", "module": "chapters/ch06/transcript.py", "signature": "def create(db: sqlite3.Connection) -> None", "returns": "None", "introduced_in_chapter": 6},
+    {"symbol": "save_response", "module": "chapters/ch06/transcript.py", "signature": "def save_response(db: sqlite3.Connection, response: dict, events: list[dict]) -> None", "returns": "None", "introduced_in_chapter": 6},
+    {"symbol": "check_response", "module": "chapters/ch07/check_db.py", "signature": "def check_response(status: str, items: list[dict], events: list[dict], inputs: tuple = ()) -> list[str]", "returns": "list of violation strings", "introduced_in_chapter": 7},
+    {"symbol": "report", "module": "chapters/ch08/drift_card.py", "signature": "def report() -> None", "returns": "None (prints 8 canonical drift flags)", "introduced_in_chapter": 8},
+    {"symbol": "send_response_request", "module": "chapters/ch08/http_transport.py", "signature": "def send_response_request(payload: dict, *, url: str | None = None, api_key: str | None = None, model: str | None = None, timeout: int = 30) -> dict", "returns": "decoded response dict (JSON or folded SSE)", "introduced_in_chapter": 8}
+  ],
+  "schemas": {
+    "uses_sqlite": true,
+    "sqlite_tables": [
+      {
+        "name": "responses",
+        "columns": [
+          "response_order INTEGER PRIMARY KEY",
+          "response_id TEXT NOT NULL UNIQUE",
+          "status TEXT NOT NULL",
+          "payload TEXT NOT NULL"
+        ]
+      },
+      {
+        "name": "items",
+        "columns": [
+          "item_order INTEGER PRIMARY KEY",
+          "origin TEXT NOT NULL CHECK (origin IN ('input', 'model', 'tool'))",
+          "direction TEXT NOT NULL CHECK (direction IN ('input', 'output'))",
+          "response_id TEXT REFERENCES responses(response_id)",
+          "output_index INTEGER",
+          "item_id TEXT",
+          "item_type TEXT NOT NULL",
+          "call_id TEXT",
+          "status TEXT",
+          "function_name TEXT",
+          "tool_output TEXT",
+          "payload TEXT NOT NULL"
+        ]
+      },
+      {
+        "name": "events",
+        "columns": [
+          "response_id TEXT NOT NULL REFERENCES responses(response_id)",
+          "event_order INTEGER NOT NULL CHECK (event_order >= 0)",
+          "sequence_number INTEGER NOT NULL",
+          "event_type TEXT NOT NULL",
+          "item_id TEXT",
+          "payload TEXT NOT NULL"
+        ]
+      }
+    ],
+    "enums_and_flags": {
+      "origins": ["input", "model", "tool"],
+      "directions": ["input", "output"],
+      "statuses": ["in_progress", "completed", "incomplete"],
+      "roles": ["user", "assistant", "system", "developer"],
+      "phases": ["commentary", "final_answer"],
+      "drift_flags": [
+        "media-type",
+        "error-object",
+        "extending-items",
+        "response-status",
+        "reasoning-summary-events",
+        "message-role",
+        "servers-url",
+        "response-example"
+      ],
+      "http_env_vars": [
+        "OPEN_RESPONSES_URL",
+        "OPEN_RESPONSES_API_KEY",
+        "OPEN_RESPONSES_MODEL"
+      ]
+    }
+  },
+  "style_invariants": {
+    "no_manual_heading_numbers": true,
+    "executable_exercise_solutions": true,
+    "strict_metadata_fidelity": true,
+    "rules": [
+      "Keep all code lines <= 72 characters where possible (<= 80 max).",
+      "No manual numbers in ## or ### headings.",
+      "Every exercise in Ch 1-7 has a runnable Python solution with verified stdout.",
+      "Metadata and cover blurb match actual implemented providers (Ollama, vLLM, OpenRouter via urllib.request; no Bedrock)."
+    ]
+  }
+}
